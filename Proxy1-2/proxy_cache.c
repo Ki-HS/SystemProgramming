@@ -78,32 +78,32 @@ char *getHomeDir(char *home)
 int main(int argc, char const *argv[])
 {
     char *Cache_Dir = (char *)calloc(32, sizeof(char)); //~/cache/ 의 경로를 담을 변수
-    char *log_dir = (char *)calloc(32, sizeof(char));
-    char *log_file = (char *)calloc(32, sizeof(char));
-    DIR *pLog;                         //로그
-    Cache_Dir = getHomeDir(Cache_Dir); // home까지의 경로를 얻음
+    char *log_dir = (char *)calloc(32, sizeof(char));   //~/log/의 경로를 담을 변수
+    char *log_file = (char *)calloc(32, sizeof(char));  //로그 파일의 경로를 담을 변수
+    DIR *pLog;                                          //로그
+    Cache_Dir = getHomeDir(Cache_Dir);                  // home까지의 경로를 얻음
     strcpy(log_dir, Cache_Dir);
     strcat(Cache_Dir, "/cache"); // 뒤에 /cache를 붙여줌
-    strcat(log_dir, "/logfile");
+    strcat(log_dir, "/logfile"); // 뒤에 /log를 붙여줌
     strcpy(log_file, log_dir);
     strcat(log_file, "/logfile.txt");
+
     pLog = opendir(log_dir);
+    // log 디렉터리가 존재하지 않으면
     if (!pLog)
     {
+        // log 디렉터리와, log 파일 생성
         mkdir(log_dir, S_IRWXG | S_IRWXU | S_IRWXO);
         creat(log_file, 0777);
     }
 
     FILE *log = fopen(log_file, "a");
 
-    int miss = 0, hit = 0;
-    struct timespec specific_time;
-    struct tm *now;
-    clock_gettime(CLOCK_REALTIME, &specific_time);
-    now = localtime(&specific_time.tv_sec);
-    clock_t start, finish;
-    start = clock();
-
+    int miss = 0, hit = 0; // hit 횟수와 miss 횟수를 담을 변수
+    struct tm *now;        //현재 시간을 담을 변수
+    time_t getTime1, getTime2, getTime3;
+    time_t start, finish; //프로그램을 동작한 시간을 확인하기 위한 변수
+    time(&start);         //시작 시간
     while (1)
     {
         umask(0); //파일 및 디렉터리 권한 부여 제한 해제
@@ -166,8 +166,9 @@ int main(int argc, char const *argv[])
                 strcat(dir_path, "/");
                 strcat(dir_path, file_name);
                 creat(dir_path, 0777);
-
-                now = localtime(&specific_time.tv_sec);
+                // Miss 로그 출력
+                time(&getTime1);
+                now = localtime(&getTime1);
                 fprintf(log, "[MISS]%s-[%d/%d/%d, %d:%d:%d]\n", url, (now->tm_year) + 1900, now->tm_mon + 1, now->tm_mday, now->tm_hour, now->tm_min, now->tm_sec);
                 miss++; // miss 카운트 증가
             }
@@ -186,14 +187,18 @@ int main(int argc, char const *argv[])
                 }
                 if (!n) //해당 디렉터리에 파일 저장
                 {
-                    now = localtime(&specific_time.tv_sec);
                     creat(dir_path, 0777);
+                    // miss log 출력
+                    time(&getTime2);
+                    now = localtime(&getTime2);
                     fprintf(log, "[MISS]%s-[%d/%d/%d, %d:%d:%d]\n", url, (now->tm_year) + 1900, now->tm_mon + 1, now->tm_mday, now->tm_hour, now->tm_min, now->tm_sec);
                     miss++; // miss 카운트 증가
                 }
                 else
                 {
-                    now = localtime(&specific_time.tv_sec);
+                    // HIT 로그 출력
+                    time(&getTime3);
+                    now = localtime(&getTime3);
                     fprintf(log, "[HIT]%s/%s\n", hash_dir, file_name);
                     fprintf(log, "[HIT]%s-[%d/%d/%d, %d:%d:%d]\n", url, (now->tm_year) + 1900, now->tm_mon + 1, now->tm_mday, now->tm_hour, now->tm_min, now->tm_sec);
                     hit++;
@@ -206,9 +211,11 @@ int main(int argc, char const *argv[])
         free(dir_path);
         free(file_name);
     }
-    finish = clock();
-    int time = (int)(finish - start) / CLOCKS_PER_SEC;
-    fprintf(log, "[Terminated] run time: %d sec. #request hit : %d, miss : %d\n", time, hit, miss);
+    time(&finish); // 종료시간 저장
+    //시작 시간과 종료 시간의 차를 구함
+    int sec = (int)difftime(finish, start);
+    //동작시간 로그에 저장
+    fprintf(log, "[Terminated] run time: %d sec. #request hit : %d, miss : %d\n", sec, hit, miss);
     fclose(log);
     free(log_dir);
     free(Cache_Dir);
