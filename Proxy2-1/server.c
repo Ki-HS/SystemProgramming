@@ -106,8 +106,6 @@ bool subProcess(char *url, char *Cache_Dir, FILE *log)
     int miss = 0, hit = 0; // hit 횟수와 miss 횟수를 담을 변수
     struct tm *now;        //현재 시간을 담을 변수
     time_t getTime1, getTime2, getTime3;
-    time_t start, finish; //프로그램을 동작한 시간을 확인하기 위한 변수
-    time(&start);         //시작 시간
 
     umask(0); //파일 및 디렉터리 권한 부여 제한 해제
 
@@ -202,14 +200,19 @@ bool subProcess(char *url, char *Cache_Dir, FILE *log)
     free(hased_url);
     free(dir_path);
     free(file_name);
-
-    time(&finish); // 종료시간 저장
-    //시작 시간과 종료 시간의 차를 구함
-    int sec = (int)difftime(finish, start);
-    //동작시간 로그에 저장
     return 1;
 }
 
+//////////////////////////////////////////////////////////////////
+// handler  			            	            			//
+//==============================================================//
+// Description	                                                //
+//								                                //
+//							                                	//
+// Purpose : using for argument of function signal         		//
+//          if any child process is not terminated,             //
+//          return immediately.                                 //
+//////////////////////////////////////////////////////////////////
 static void handler()
 {
     pid_t pid;
@@ -244,24 +247,26 @@ int main(int argc, char const *argv[])
 
     FILE *log;
 
-    struct sockaddr_in server_addr, client_addr;
+    struct sockaddr_in server_addr, client_addr; //서버의 주소와 client의 주소를 담는 구조체 변수
     int socket_fd, client_fd;
-    int len, len_out;
+    int len, len_out;//입력한 명령어의 크기를 담을 변수
     int state;
-    char buf[BUFFSIZE];
+    char buf[BUFFSIZE];//입력받을 버퍼
     pid_t pid;
 
-    if ((socket_fd = socket(PF_INET, SOCK_STREAM, 0)) < 0)
+    if ((socket_fd = socket(PF_INET, SOCK_STREAM, 0)) < 0)//소켓 생성
     {
         printf("Server : Can't open stream socket\n");
         return 0;
     }
 
     bzero((char *)&server_addr, sizeof(server_addr));
+    //서버의 정보를 할당함
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     server_addr.sin_port = htons(PORTNO);
 
+    //소켓에 서버를 할당함
     if (bind(socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
     {
         printf("Server : Can't bind local address\n");
@@ -269,7 +274,7 @@ int main(int argc, char const *argv[])
         return 0;
     }
 
-    listen(socket_fd, 5);
+    listen(socket_fd, 5);//연결 요청을 대기함
     signal(SIGCHLD, (void *)handler);
 
     int miss = 0, hit = 0;          // hit 횟수와 miss 횟수를 담을 변수
@@ -282,39 +287,39 @@ int main(int argc, char const *argv[])
 
         bzero((char *)&client_addr, sizeof(client_addr));
         len = sizeof(client_addr);
-        client_fd = accept(socket_fd, (struct sockaddr *)&client_addr, &len);
+        client_fd = accept(socket_fd, (struct sockaddr *)&client_addr, &len);//접속 대기
 
-        if (client_fd < 0)
+        if (client_fd < 0)//연결을 받아들이는데 실패했을 때
         {
             printf("Server : accept failed  %d\n", getpid());
             close(socket_fd);
             fclose(log);
             return 0;
         }
-
+        //클라이언트와 연결되었을때
         printf("[%s : %d] client was connected\n", inet_ntoa(client_addr.sin_addr), client_addr.sin_port);
         pid = fork();
 
-        if (pid == -1)
+        if (pid == -1)//fork가 제대로 되지 않았을 때
         {
             close(client_fd);
             close(socket_fd);
             fclose(log);
             continue;
         }
-        if (pid == 0)
+        if (pid == 0)//child process
         {
             hit = 0;
             miss = 0;
 
             time(&main_start); //시작 시간
-
+            //클라이언트에서 버퍼 크기만큼 읽어들임
             while ((len_out = read(client_fd, buf, BUFFSIZE)) > 0)
             {
                 buf[len_out - 1] = '\0';
-                if (!strncmp(buf, "bye", 3))
+                if (!strncmp(buf, "bye", 3))//bye를 입력했을 때 종료
                     break;
-                if (subProcess(buf, Cache_Dir, log))
+                if (subProcess(buf, Cache_Dir, log))//이전에 입력했던 url을 입력했을 때
                 {
                     hit++;
                     write(client_fd, "HIT\n", 4);
